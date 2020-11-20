@@ -9,34 +9,7 @@
 #define WIN32_LEAN_AND_MEAN        
 #include <windows.h>
 
-
-void Print() {
-    std::cout << std::endl;
-}
-
-
-template<typename T, typename ...TS>
-void Print(T value, TS ...ts) {
-    std::cout << value << "   ";
-    Print(ts...);
-}
-
-
-std::string GetWin32ErrorMessage(DWORD errorCode) {
-
-	char buffer[4096];
-
-	auto length = FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM, nullptr, errorCode, 0, buffer, sizeof(buffer), nullptr);
-
-	return std::string{ buffer, length };
-}
-
-void Exit(std::string message) {
-	int errorCode = GetLastError();
-	std::cout << message << "	" << GetWin32ErrorMessage(errorCode) << std::endl;
-    exit(errorCode);
-}
-
+#include "../../../include/leikaifeng.h"
 
 class CreateWindowHandle {
 
@@ -146,14 +119,23 @@ enum class VKCode : unsigned char {
 
     G = 0x47,
 
-    RightShift = 0x10,
+    RightShift = VK_RSHIFT,
+    
+    LeftShift = VK_LSHIFT,
 
-    ArrayUp=0x26,
+    Shift = 16,
+
+    ArrayUp = 0x26,
+    
     ArrayDown = 40,
+    
     ArrayLeft = 37,
+    
     ArrayRight = 39,
 
-    P=0x50
+    P = 0x50,
+
+    Q = 81,
 
 
 };
@@ -192,76 +174,56 @@ public:
     }
 };
 
-bool operator!=(Input left, Input right) {
-    return left.GetValue() != right.GetValue();
-}
-
-
-
-template<typename T, size_t SIZE>
-requires(std::is_default_constructible_v<T> && std::is_trivially_copy_assignable_v<T> && SIZE != 0 && (SIZE_MAX % SIZE == SIZE - 1))
-class fixd {
-
-
-    static size_t GetIndex(size_t index) {
-        return index % SIZE;
-    }
-
-
-    class reverse_iterator {
-        std::array<T, SIZE>& m_array;
-        size_t m_index;
-
-
-    public:
-        reverse_iterator(std::array<T, SIZE>& array, size_t index) : m_array(array), m_index(index) {}
-
-
-        reverse_iterator& operator++() {
-            m_index--;
-
-            return *this;
-        }
-
-        bool operator!=(const reverse_iterator& right) {
-            return GetIndex(m_index) != GetIndex(right.m_index);
-        }
-
-        T& operator*() {
-            return m_array[GetIndex(m_index)];
-        }
-
-    };
-
-    std::array<T, SIZE> m_array;
-
-    size_t m_index;
-public:
-    fixd() :m_array(), m_index(0) {
-
-    }
-
-    void Add(const T& value) {
-
-        m_array[GetIndex(m_index)] = value;
-
-        m_index++;
-    }
-
-    auto rbegin() {
-        return fixd<T, SIZE>::reverse_iterator{ m_array, m_index - 1 };
-    }
-
-    auto rend() {
-        return fixd<T, SIZE>::reverse_iterator{ m_array, m_index };
-    }
-};
-
-
-
 class LinkMap {
 
-    constexpr static size_t SIZE = 32;
+
+    template <typename T, size_t SIZE>
+    requires(std::is_default_constructible_v<T>&& std::is_trivially_copy_assignable_v<T>&& SIZE != 0)
+        class BufFix {
+
+        constexpr static size_t LENGTH = SIZE * 4;
+
+        constexpr static size_t ONE_BLACK_BYTES_SIZE = sizeof(T) * SIZE;
+
+        constexpr static size_t MOVE_LENGTH = LENGTH - SIZE;
+
+        T m_buffer[LENGTH];
+
+        size_t m_index;
+
+    public:
+        BufFix() : m_buffer(), m_index(SIZE) {}
+
+        void Add(T value) {
+
+            m_buffer[m_index] = value;
+            m_index++;
+
+            if (m_index == LENGTH) {
+
+                std::memcpy(m_buffer, m_buffer + MOVE_LENGTH, ONE_BLACK_BYTES_SIZE);
+
+                m_index = SIZE;
+            }
+            else {
+
+            }
+        }
+
+        //必须保证std::vector的长度小于SIZE
+        bool Cmp(const std::vector<T>& value) {
+
+            auto data = value.data();
+
+            auto data_bytes_size = value.size() * sizeof(T);
+
+            auto buffer = reinterpret_cast<char*>(&m_buffer[m_index]) - data_bytes_size;
+
+            return 0 == std::memcmp(buffer, data, data_bytes_size);
+        }
+    };
+
+    constexpr static size_t SIZE = 8;
 
     class Node {
         std::vector<Input> m_key;
@@ -286,42 +248,21 @@ class LinkMap {
 
     std::vector<Node> m_nodes;
 
-    fixd<Input, SIZE> m_keys;
+    BufFix<Input, SIZE> m_keys;
 
 
-    static bool Get(fixd<Input, SIZE>& left, const std::vector<Input>& right) {
-
-        auto left_start = left.rbegin();
-
-        auto left_end = left.rend();
-
-        auto right_start = right.rbegin();
-
-        auto right_end = right.rend();
-
-
-        while (left_start != left_end && right_start!=right_end)
-        {
-
-            if (*left_start != *right_start) {
-                return false;
-            }
-
-
-
-            ++left_start;
-            ++right_start;
-        }
-
-        return true;
-    }
-
+    
 public:
     LinkMap() : m_nodes(), m_keys() {
       
     }
 
     void Add(const std::vector<Input>& key, const std::vector<INPUT>& value) {
+       
+        if (key.size() > SIZE) {
+            Exit("key item too long");
+        }
+        
         m_nodes.emplace_back(key, value);
     }
 
@@ -332,8 +273,10 @@ public:
 
         for (auto& node : m_nodes) {
          
-            if (Get(m_keys, node.GetKey())) {
+            if (m_keys.Cmp(node.GetKey())) {
+
                 return &node.GetValue();
+
             }
         }
 
@@ -426,6 +369,7 @@ void KeyboardRawInput(RAWKEYBOARD& data) {
    
     if ((data.Flags & RI_KEY_BREAK) == RI_KEY_MAKE) {
        
+        
         KeyBoardMacro(Input{ InputFlag::Down, static_cast<VKCode>(data.VKey) });
 
     }
@@ -454,8 +398,7 @@ void MouseRawInput(RAWMOUSE& data) {
         MouseMacro(Input{ InputFlag::Up, VKCode::MouseLeft });
     }
     else if (data.usButtonFlags == RI_MOUSE_MIDDLE_BUTTON_DOWN) {
-
-
+        
         MouseMacro(Input{ InputFlag::Down, VKCode::MouseMiddle });
     }
     else if (data.usButtonFlags == RI_MOUSE_MIDDLE_BUTTON_UP) {
@@ -567,7 +510,9 @@ int main() {
        Input{InputFlag::Up, VKCode::MouseMiddle},
         },
         {
-           CreateKeyBoardInput(InputFlag::Down, VKCode::C),
+            CreateKeyBoardInput(InputFlag::Down, VKCode::H),
+            CreateKeyBoardInput(InputFlag::Up, VKCode::H),
+            CreateKeyBoardInput(InputFlag::Down, VKCode::C),
             CreateKeyBoardInput(InputFlag::Up, VKCode::C),
         });
 
@@ -581,6 +526,18 @@ int main() {
             CreateKeyBoardInput(InputFlag::Up, VKCode::R),
         });
 
+
+
+    auto down = {
+        CreateKeyBoardInput(InputFlag::Down, VKCode::P),
+        CreateKeyBoardInput(InputFlag::Down, VKCode::C),
+    };
+
+    auto up = {
+        CreateKeyBoardInput(InputFlag::Up, VKCode::C),
+        CreateKeyBoardInput(InputFlag::Up, VKCode::P),   
+    };
+
     AddKeyBoardData({
 
         Input{InputFlag::Down, VKCode::ArrayUp},
@@ -588,20 +545,16 @@ int main() {
         Input{InputFlag::Down, VKCode::ArrayUp},
        
         },
-        {
-            CreateKeyBoardInput(InputFlag::Down, VKCode::P),
-        });
+        down);
 
     AddKeyBoardData({
-        
+
        Input{InputFlag::Down, VKCode::ArrayUp},
        Input{InputFlag::Down, VKCode::ArrayUp},
        Input{InputFlag::Up, VKCode::ArrayUp},
 
         },
-        {
-            CreateKeyBoardInput(InputFlag::Up, VKCode::P),   
-        });
+        up);
 
 
     AddKeyBoardData({
@@ -610,9 +563,7 @@ int main() {
       Input{InputFlag::Up, VKCode::ArrayDown},
 
         },
-        {
-            CreateKeyBoardInput(InputFlag::Up, VKCode::P),
-        });
+        up);
 
     AddKeyBoardData({
 
@@ -620,9 +571,7 @@ int main() {
       Input{InputFlag::Up, VKCode::ArrayLeft},
 
         },
-        {
-            CreateKeyBoardInput(InputFlag::Up, VKCode::P),
-        });
+        up);
 
     AddKeyBoardData({
 
@@ -630,8 +579,9 @@ int main() {
       Input{InputFlag::Up, VKCode::ArrayRight},
 
         },
-        {
-            CreateKeyBoardInput(InputFlag::Up, VKCode::P),
-        });
+        up);
+
+
+    
     return Start();
 }
