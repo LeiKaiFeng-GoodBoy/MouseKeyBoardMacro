@@ -137,7 +137,9 @@ enum class VKCode : unsigned char {
 
     Q = 81,
 
+    N1 = 49,
 
+    N2 = 50,
 };
 
 
@@ -192,21 +194,21 @@ class LinkMap {
         size_t m_index;
 
     public:
-        BufFix() : m_buffer(), m_index(SIZE) {}
+        BufFix() : m_buffer(), m_index(MOVE_LENGTH) {}
 
         void Add(T value) {
 
+            m_index--;
             m_buffer[m_index] = value;
-            m_index++;
+           
+            if (m_index == 0) {
 
-            if (m_index == LENGTH) {
+                std::memcpy(m_buffer + MOVE_LENGTH, m_buffer, ONE_BLACK_BYTES_SIZE);
 
-                std::memcpy(m_buffer, m_buffer + MOVE_LENGTH, ONE_BLACK_BYTES_SIZE);
-
-                m_index = SIZE;
+                m_index = MOVE_LENGTH;
             }
             else {
-
+                
             }
         }
 
@@ -217,7 +219,7 @@ class LinkMap {
 
             auto data_bytes_size = value.size() * sizeof(T);
 
-            auto buffer = reinterpret_cast<char*>(&m_buffer[m_index]) - data_bytes_size;
+            auto buffer = reinterpret_cast<char*>(&m_buffer[m_index]);
 
             return 0 == std::memcmp(buffer, data, data_bytes_size);
         }
@@ -262,8 +264,11 @@ public:
         if (key.size() > SIZE) {
             Exit("key item too long");
         }
+       
         
-        m_nodes.emplace_back(key, value);
+        std::vector<Input> key_{ key.crbegin(), key.crend() };
+
+        m_nodes.emplace_back(key_, value);
     }
 
     std::vector<INPUT>* Get(Input key) {
@@ -325,6 +330,30 @@ INPUT CreateKeyBoardInput(InputFlag flag, VKCode code) {
 }
 
 
+INPUT CreareMouseInput(InputFlag flag, VKCode code) {
+
+    MOUSEINPUT mouseInput = {};
+
+    if (code == VKCode::MouseLeft) {
+        if (flag == InputFlag::Down)
+        {
+            mouseInput.dwFlags = MOUSEEVENTF_LEFTDOWN;
+        }
+        else {
+            mouseInput.dwFlags = MOUSEEVENTF_LEFTUP;
+        }
+    }
+
+    INPUT input = {};
+
+
+    input.type = INPUT_MOUSE;
+
+    input.mi = mouseInput;
+
+    return input;
+}
+
 class Info {
 
 public:
@@ -366,6 +395,7 @@ void KeyBoardMacro(Input input) {
 
 
 void KeyboardRawInput(RAWKEYBOARD& data) {
+   
    
     if ((data.Flags & RI_KEY_BREAK) == RI_KEY_MAKE) {
        
@@ -497,6 +527,46 @@ int Start() {
 
 int main() {
     
+    auto n1 = {
+            CreateKeyBoardInput(InputFlag::Down, VKCode::N1),
+            CreateKeyBoardInput(InputFlag::Up, VKCode::N1),
+    };
+
+    auto n2 = {
+            CreateKeyBoardInput(InputFlag::Down, VKCode::N2),
+            CreateKeyBoardInput(InputFlag::Up, VKCode::N2),
+    };
+
+    AddMouseData({
+        Input{InputFlag::Up, VKCode::MouseLeft},
+        Input{InputFlag::Down, VKCode::MouseRight},
+        Input{InputFlag::Up, VKCode::MouseRight},
+        },
+        n1
+        );
+
+    AddMouseData({
+        Input{InputFlag::Down, VKCode::MouseLeft},
+        Input{InputFlag::Down, VKCode::MouseRight},
+        Input{InputFlag::Up, VKCode::MouseRight},
+        },
+        n1
+        );
+
+    AddMouseData({
+       Input{InputFlag::Down, VKCode::MouseRight},
+       Input{InputFlag::Down, VKCode::MouseLeft},
+       Input{InputFlag::Up, VKCode::MouseLeft},
+        },
+        n2);
+
+    AddMouseData({
+        Input{InputFlag::Up, VKCode::MouseRight},
+        Input{InputFlag::Down, VKCode::MouseLeft},
+        Input{InputFlag::Up, VKCode::MouseLeft},
+        },
+        n2);
+
     AddMouseData({
         Input{InputFlag::Down, VKCode::MouseMiddle},
         },
@@ -514,6 +584,8 @@ int main() {
             CreateKeyBoardInput(InputFlag::Up, VKCode::H),
             CreateKeyBoardInput(InputFlag::Down, VKCode::C),
             CreateKeyBoardInput(InputFlag::Up, VKCode::C),
+            CreateKeyBoardInput(InputFlag::Down, VKCode::H),
+            CreateKeyBoardInput(InputFlag::Up, VKCode::H),
         });
 
     
