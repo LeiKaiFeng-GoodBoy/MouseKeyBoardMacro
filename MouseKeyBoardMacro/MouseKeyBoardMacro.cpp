@@ -178,6 +178,27 @@ public:
 
 class LinkMap {
 
+    template <typename T>
+    class Span {
+        std::vector<T>* m_source;
+
+        size_t m_offset;
+
+        size_t m_size;
+
+    public:
+        Span(std::vector<T>* source, size_t offset, size_t size) :
+            m_source(source), m_offset(offset), m_size(size) {}
+
+        T* data() {
+            return m_source->data() + m_offset;
+        }
+
+        size_t size() {
+            return m_size;
+        }
+    };
+
 
     template <typename T, size_t SIZE>
     requires(std::is_default_constructible_v<T>&& std::is_trivially_copy_assignable_v<T>&& SIZE != 0)
@@ -213,7 +234,7 @@ class LinkMap {
         }
 
         //必须保证std::vector的长度小于SIZE
-        bool Cmp(const std::vector<T>& value) {
+        bool Cmp(Span<Input>& value) {
 
             auto data = value.data();
 
@@ -227,13 +248,14 @@ class LinkMap {
 
     constexpr static size_t SIZE = 8;
 
+    
     class Node {
-        std::vector<Input> m_key;
+        Span<Input> m_key;
 
-        std::vector<INPUT> m_value;
+        Span<INPUT> m_value;
 
     public:
-        Node(const std::vector<Input>& key, const std::vector<INPUT>& value) : m_key(key), m_value(value) {}
+        Node(Span<Input> key, Span<INPUT> value) : m_key(key), m_value(value) {}
     
 
 
@@ -247,31 +269,67 @@ class LinkMap {
 
     };
 
-
+    std::vector<Input> m_key_source;
+    std::vector<INPUT> m_value_source;
     std::vector<Node> m_nodes;
 
     BufFix<Input, SIZE> m_keys;
 
 
-    
+    void SendMacro(Span<INPUT>* item) {
+        if (item != nullptr) {
+
+            SendInput(static_cast<UINT>(item->size()), item->data(), sizeof(INPUT));
+        }
+    }
 public:
-    LinkMap() : m_nodes(), m_keys() {
+    LinkMap() : m_value_source(), m_key_source(), m_nodes(), m_keys() {
       
+    }
+
+    Span<Input> CreateKey(const std::vector<Input>& key)
+    {
+        if (key.size() > SIZE) {
+            Exit("key item too long");
+        }
+
+
+        auto offset = m_key_source.size();
+
+        for (auto item = key.crbegin(); item != key.crend(); item++)
+        {
+
+
+            m_key_source.push_back(*item);
+        }
+
+        return Span{ &m_key_source, offset, key.size() };
+    }
+
+    Span<INPUT> CreateValue(const std::vector<INPUT>& value)
+    {
+        auto offset = m_value_source.size();
+
+        for (auto& item : value)
+        {
+
+
+            m_value_source.push_back(item);
+        }
+
+        return Span{ &m_value_source, offset, value.size() };
     }
 
     void Add(const std::vector<Input>& key, const std::vector<INPUT>& value) {
        
-        if (key.size() > SIZE) {
-            Exit("key item too long");
-        }
-       
         
-        std::vector<Input> key_{ key.crbegin(), key.crend() };
 
-        m_nodes.emplace_back(key_, value);
+        m_nodes.push_back(Node{ CreateKey(key), CreateValue(value) });
+
+
     }
 
-    std::vector<INPUT>* Get(Input key) {
+    void Send(Input key) {
 
         m_keys.Add(key);
 
@@ -280,13 +338,13 @@ public:
          
             if (m_keys.Cmp(node.GetKey())) {
 
-                return &node.GetValue();
+                SendMacro(&node.GetValue());
 
             }
         }
-
-        return nullptr;
     }
+
+    
 };
 
 auto GetScanCode(VKCode code) {
@@ -371,26 +429,18 @@ public:
 };
 
 
-void SendMacro(std::vector<INPUT>* item) {
-    if (item != nullptr) {
-       
-        SendInput(static_cast<UINT>(item->size()), item->data(), sizeof(INPUT));
-    }
-}
+
 
 void MouseMacro(Input input) {
 
-   decltype(auto) data = Info::GetMouseData();
+    Info::GetMouseData().Send(input);
 
-   SendMacro(data.Get(input));
 }
 
 
 void KeyBoardMacro(Input input) {
 
-    decltype(auto) data = Info::GetKeyBoardData();
-
-    SendMacro(data.Get(input));
+    Info::GetKeyBoardData().Send(input);
 }
 
 
@@ -540,18 +590,31 @@ int main() {
     AddMouseData({
         Input{InputFlag::Up, VKCode::MouseLeft},
         Input{InputFlag::Down, VKCode::MouseRight},
+        },
+        n1
+        );
+
+    AddMouseData({
+        Input{InputFlag::Up, VKCode::MouseLeft},
+        Input{InputFlag::Down, VKCode::MouseRight},
         Input{InputFlag::Up, VKCode::MouseRight},
         },
         n1
         );
 
     AddMouseData({
-        Input{InputFlag::Down, VKCode::MouseLeft},
-        Input{InputFlag::Down, VKCode::MouseRight},
+        Input{InputFlag::Up, VKCode::MouseLeft},
         Input{InputFlag::Up, VKCode::MouseRight},
         },
         n1
         );
+
+    AddMouseData({
+        Input{InputFlag::Up, VKCode::MouseRight},
+        Input{InputFlag::Down, VKCode::MouseLeft},
+        Input{InputFlag::Up, VKCode::MouseLeft},
+        },
+        n2);
 
     AddMouseData({
        Input{InputFlag::Down, VKCode::MouseRight},
@@ -561,8 +624,9 @@ int main() {
         n2);
 
     AddMouseData({
-        Input{InputFlag::Up, VKCode::MouseRight},
+        
         Input{InputFlag::Down, VKCode::MouseLeft},
+        Input{InputFlag::Up, VKCode::MouseRight},
         Input{InputFlag::Up, VKCode::MouseLeft},
         },
         n2);
