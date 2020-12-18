@@ -5,6 +5,7 @@
 #include <vector>
 #include <queue>
 #include <algorithm>
+#include <span>
 
 #define WIN32_LEAN_AND_MEAN        
 #include <windows.h>
@@ -178,28 +179,7 @@ public:
 
 class LinkMap {
 
-    template <typename T>
-    class Span {
-        std::vector<T>* m_source;
-
-        size_t m_offset;
-
-        size_t m_size;
-
-    public:
-        Span(std::vector<T>* source, size_t offset, size_t size) :
-            m_source(source), m_offset(offset), m_size(size) {}
-
-        T* data() {
-            return m_source->data() + m_offset;
-        }
-
-        size_t size() {
-            return m_size;
-        }
-    };
-
-
+    
     template <typename T, size_t SIZE>
     requires(std::is_default_constructible_v<T>&& std::is_trivially_copy_assignable_v<T>&& SIZE != 0)
         class BufFix {
@@ -234,7 +214,7 @@ class LinkMap {
         }
 
         //必须保证std::vector的长度小于SIZE
-        bool Cmp(Span<Input>& value) {
+        bool Cmp(std::span<Input>& value) {
 
             auto data = value.data();
 
@@ -248,46 +228,29 @@ class LinkMap {
 
     constexpr static size_t SIZE = 8;
 
+    using FT = std::pair<std::pair<size_t, size_t>, std::pair<size_t, size_t>>;
+
+    using ET = std::pair<std::span<Input>, std::span<INPUT>>;
     
-    class Node {
-        Span<Input> m_key;
-
-        Span<INPUT> m_value;
-
-    public:
-        Node(Span<Input> key, Span<INPUT> value) : m_key(key), m_value(value) {}
-    
-
-
-        auto& GetKey() {
-            return m_key;
-        }
-
-        auto& GetValue() {
-            return m_value;
-        }
-
-    };
 
     std::vector<Input> m_key_source;
     std::vector<INPUT> m_value_source;
-    std::vector<Node> m_nodes;
+    
+    std::vector<FT> m_firstNodes;
+    std::vector<ET> m_nodes;
 
     BufFix<Input, SIZE> m_keys;
 
 
-    void SendMacro(Span<INPUT>* item) {
-        if (item != nullptr) {
-
-            SendInput(static_cast<UINT>(item->size()), item->data(), sizeof(INPUT));
-        }
+    void SendMacro(std::span<INPUT>& item) {
+        SendInput(static_cast<UINT>(item.size()), item.data(), sizeof(INPUT));
     }
 public:
-    LinkMap() : m_value_source(), m_key_source(), m_nodes(), m_keys() {
+    LinkMap() : m_value_source(), m_key_source(), m_nodes(), m_keys(), m_firstNodes() {
       
     }
 
-    Span<Input> CreateKey(const std::vector<Input>& key)
+    std::pair<size_t, size_t> CreateKey(const std::vector<Input>& key)
     {
         if (key.size() > SIZE) {
             Exit("key item too long");
@@ -303,10 +266,22 @@ public:
             m_key_source.push_back(*item);
         }
 
-        return Span{ &m_key_source, offset, key.size() };
+        return std::make_pair(offset, key.size()); 
     }
 
-    Span<INPUT> CreateValue(const std::vector<INPUT>& value)
+    std::span<Input> CreateKey(const std::pair<size_t, size_t>& n) {
+        auto item = m_key_source.begin();
+
+        return std::span<Input>{item + n.first, n.second};
+    }
+
+    std::span<INPUT> CreateValue(const std::pair<size_t, size_t>& n) {
+        auto item = m_value_source.begin();
+
+        return std::span<INPUT>{item + n.first, n.second};
+    }
+
+    std::pair<size_t, size_t> CreateValue(const std::vector<INPUT>& value)
     {
         auto offset = m_value_source.size();
 
@@ -317,16 +292,23 @@ public:
             m_value_source.push_back(item);
         }
 
-        return Span{ &m_value_source, offset, value.size() };
+        return std::make_pair(offset, value.size());
     }
 
     void Add(const std::vector<Input>& key, const std::vector<INPUT>& value) {
        
         
 
-        m_nodes.push_back(Node{ CreateKey(key), CreateValue(value) });
+        m_firstNodes.push_back(std::make_pair(CreateKey(key), CreateValue(value)));
 
 
+    }
+
+    void Complete() {
+        for (auto& item : m_firstNodes)
+        {
+            m_nodes.push_back(std::make_pair(CreateKey(item.first), CreateValue(item.second)));
+        }
     }
 
     void Send(Input key) {
@@ -336,9 +318,9 @@ public:
 
         for (auto& node : m_nodes) {
          
-            if (m_keys.Cmp(node.GetKey())) {
+            if (m_keys.Cmp(node.first)) {
 
-                SendMacro(&node.GetValue());
+                SendMacro(node.second);
 
             }
         }
@@ -540,6 +522,11 @@ void AddKeyBoardData(std::vector<Input> key, std::vector<INPUT> value) {
 }
 
 int Start() {
+
+    Info::GetKeyBoardData().Complete();
+
+    Info::GetMouseData().Complete();
+
     CreateWindowHandle window{};
 
 
