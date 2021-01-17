@@ -650,7 +650,6 @@ int main() {
         {
             CreateKeyBoardInput(InputFlag::Down, VKCode::H),
             CreateKeyBoardInput(InputFlag::Up, VKCode::H),
-            CreateKeyBoardInput(InputFlag::Down, VKCode::C),
             
         });
 
@@ -658,6 +657,9 @@ int main() {
        Input{InputFlag::Up, VKCode::MouseMiddle},
         },
         {
+            CreateKeyBoardInput(InputFlag::Down, VKCode::H),
+            CreateKeyBoardInput(InputFlag::Up, VKCode::H),
+            CreateKeyBoardInput(InputFlag::Down, VKCode::C),
             CreateKeyBoardInput(InputFlag::Up, VKCode::C),
             CreateKeyBoardInput(InputFlag::Down, VKCode::H),
             CreateKeyBoardInput(InputFlag::Up, VKCode::H),
