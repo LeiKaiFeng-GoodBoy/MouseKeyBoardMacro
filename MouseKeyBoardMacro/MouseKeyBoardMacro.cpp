@@ -597,6 +597,24 @@ int main() {
         );
 
     AddMouseData({
+        Input{InputFlag::Up, VKCode::MouseLeft},
+        Input{InputFlag::Up, VKCode::MouseRight},
+        Input{InputFlag::Down, VKCode::MouseRight},
+        },
+        n1
+        );
+
+    AddMouseData({
+        Input{InputFlag::Up, VKCode::MouseLeft},
+        Input{InputFlag::Down, VKCode::MouseRight},
+        Input{InputFlag::Up, VKCode::MouseRight},
+        Input{InputFlag::Down, VKCode::MouseRight},
+        Input{InputFlag::Up, VKCode::MouseRight},
+        },
+        n1
+        );
+
+    AddMouseData({
         Input{InputFlag::Up, VKCode::MouseRight},
         Input{InputFlag::Down, VKCode::MouseLeft},
         Input{InputFlag::Up, VKCode::MouseLeft},
@@ -619,11 +637,20 @@ int main() {
         n2);
 
     AddMouseData({
+
+        Input{InputFlag::Down, VKCode::MouseLeft},        
+        Input{InputFlag::Up, VKCode::MouseLeft},
+        Input{InputFlag::Up, VKCode::MouseRight},
+        },
+        n2);
+
+    AddMouseData({
         Input{InputFlag::Down, VKCode::MouseMiddle},
         },
         {
             CreateKeyBoardInput(InputFlag::Down, VKCode::H),
             CreateKeyBoardInput(InputFlag::Up, VKCode::H),
+            CreateKeyBoardInput(InputFlag::Down, VKCode::C),
             
         });
 
@@ -631,9 +658,6 @@ int main() {
        Input{InputFlag::Up, VKCode::MouseMiddle},
         },
         {
-            CreateKeyBoardInput(InputFlag::Down, VKCode::H),
-            CreateKeyBoardInput(InputFlag::Up, VKCode::H),
-            CreateKeyBoardInput(InputFlag::Down, VKCode::C),
             CreateKeyBoardInput(InputFlag::Up, VKCode::C),
             CreateKeyBoardInput(InputFlag::Down, VKCode::H),
             CreateKeyBoardInput(InputFlag::Up, VKCode::H),
